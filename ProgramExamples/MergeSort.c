@@ -6,9 +6,17 @@
 #include <stdlib.h>
 // For time() function:
 #include <time.h>
+// To work with bool functions:
+#include <stdbool.h>
+// To work with strlen() function:
+#include <string.h>
+
+// Constants
+const int args_num = 1;
+const char args[args_num][10] = {"-N"};
+const int default_N = 20;
 
 /*Functions*/
-
 void print_array(int ptr_len, float *ptr){
 	for (int i = 0; i < ptr_len; i++){
 		printf("%f\t", *(ptr + i));
@@ -79,13 +87,45 @@ void MergeSort(float *X, float *Y, int N){
 	Merge(Y, T, T + N/2, N/2, N - N/2);	
 }
 
+// Not sure about some of these expressions. Check it later!
+bool startsWith(const char *string, const char *prefix){
+	return strncmp(string, prefix, strlen(prefix)) == 0;
+}
 
-int main(){
+
+int arg_parser(int argc, char *argv[]){
+	int N = 0;
+	for (int i = 1; i < argc; i++){
+		for (int j = 0; j < args_num; j++){
+			if (startsWith(*(argv + i), args[j])){
+				if (argc == 3){
+					N = atoi(*(argv + i + 1));
+				}
+				else{
+					printf("Wrong command, using default value for N (20)\n");
+					return default_N;
+				}
+				
+				break;
+			}
+		}
+	}
+	if (N>=2 & N<=999999){
+		return N;
+	}
+	else{
+		printf("N out of range, using default value (20)\n");
+		return default_N;
+	}
+}
+
+
+int main(int argc, char *argv[]){
 	// Initiate seed for random numbers
 	srand((unsigned)time(NULL));
 
-	// Initial variables
-	int N = 20;
+	// Initial variables from arg_parser
+	int N = arg_parser(argc, argv);
 
 	// Dynamically store memory space
 	float *X_ptr, *Y_ptr;
@@ -103,4 +143,6 @@ int main(){
 	print_array(N, X_ptr);
 	printf("Y:\n");
 	print_array(N, Y_ptr);
+
+	return 0;
 }

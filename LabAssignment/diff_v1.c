@@ -11,8 +11,8 @@
 #endif
 
 // v1: change the order of memory storage to speed up the Cache acces
-#define F1(x,y,z) F1[((ny)*(nz)*(z))+((nz)*(y))+(x)]
-#define F2(x,y,z) F2[((ny)*(nz)*(z))+((nz)*(y))+(x)]
+#define F1(x,y,z) F1[((ny)*(nx)*(z))+((nx)*(y))+(x)]
+#define F2(x,y,z) F2[((ny)*(nx)*(z))+((nx)*(y))+(x)]
 
 void diffusion (REAL * F1, REAL * F2, 
                 int nx, int ny, int nz,

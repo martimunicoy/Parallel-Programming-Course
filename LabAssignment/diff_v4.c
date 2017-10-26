@@ -23,7 +23,7 @@ void diffusion (REAL * F1, REAL * F2,
   int west, east, north, south, top, down;
   for (t=0; t < time; ++t)
   {
-    // Change x, y and z for constants pointing to the right points for vertices, sides and faces
+    // v3: Change x, y and z for constants pointing to the right points for vertices, sides and faces in order to avoid inner conditionals and make it compatible with vectorization
     F2(0,0,0) =
        F1(0,0,0) *cc + F1(0,0,0) *cw +
        F1(1,0,0) *ce + F1(0,0,0) *cn +
@@ -176,7 +176,8 @@ void diffusion (REAL * F1, REAL * F2,
              F1(nx-1,y,z)   *ce + F1(nx-1,y-1,z) *cn +
              F1(nx-1,y+1,z) *cs + F1(nx-1,y,z-1) *cb +
              F1(nx-1,y,z+1) *ct;
-             
+        
+        // v4: Explicitly, make the compiler vectorize this part of the code
         #pragma omp simd
         for (x = 1; x < nx-1; ++x)
         {

@@ -23,159 +23,160 @@ void diffusion (REAL * F1, REAL * F2,
   int west, east, north, south, top, down;
   for (t=0; t < time; ++t)
   {
+    // Change x, y and z for constants pointing to the right points for vertices, sides and faces
     F2(0,0,0) =
-       F1(x,y,z)   *cc + F1(x,y,z) *cw +
-       F1(x+1,y,z) *ce + F1(x,y,z) *cn +
-       F1(x,y+1,z) *cs + F1(x,y,z) *cb +
-       F1(x,y,z+1) *ct;
+       F1(0,0,0) *cc + F1(0,0,0) *cw +
+       F1(1,0,0) *ce + F1(0,0,0) *cn +
+       F1(0,1,0) *cs + F1(0,0,0) *cb +
+       F1(0,0,1) *ct;
     F2(nx-1,ny-1,nz-1) =
-       F1(x,y,z) *cc + F1(x-1,y,z) *cw +
-       F1(x,y,z) *ce + F1(x,y-1,z) *cn +
-       F1(x,y,z) *cs + F1(x,y,z-1) *cb +
-       F1(x,y,z) *ct;
+       F1(nx-1,ny-1,nz-1) *cc + F1(nx-2,ny-1,nz-1) *cw +
+       F1(nx-1,ny-1,nz-1) *ce + F1(nx-1,ny-2,nz-1) *cn +
+       F1(nx-1,ny-1,nz-1) *cs + F1(nx-1,ny-1,nz-2) *cb +
+       F1(nx-1,ny-1,nz-1) *ct;
     F2(nx-1,0,0) =
-       F1(x,y,z)   *cc + F1(x-1,y,z) *cw +
-       F1(x,y,z)   *ce + F1(x,y,z)   *cn +
-       F1(x,y+1,z) *cs + F1(x,y,z)   *cb +
-       F1(x,y,z+1) *ct;
+       F1(nx-1,0,0) *cc + F1(nx-2,0,0) *cw +
+       F1(nx-1,0,0) *ce + F1(nx-1,0,0) *cn +
+       F1(nx-1,1,0) *cs + F1(nx-1,0,0) *cb +
+       F1(nx-1,0,1) *ct;
     F2(0,ny-1,0) =
-       F1(x,y,z)   *cc + F1(x,y,z)   *cw +
-       F1(x+1,y,z) *ce + F1(x,y-1,z) *cn +
-       F1(x,y,z)   *cs + F1(x,y,z)   *cb +
-       F1(x,y,z+1) *ct;
+       F1(0,ny-1,0) *cc + F1(0,ny-1,0) *cw +
+       F1(1,ny-1,0) *ce + F1(0,ny-2,0) *cn +
+       F1(0,ny-1,0) *cs + F1(0,ny-1,0) *cb +
+       F1(0,ny-1,1) *ct;
     F2(nx-1,ny-1,0) =
-       F1(x,y,z)   *cc + F1(x-1,y,z) *cw +
-       F1(x,y,z)   *ce + F1(x,y-1,z) *cn +
-       F1(x,y,z)   *cs + F1(x,y,z)   *cb +
-       F1(x,y,z+1) *ct;
+       F1(nx-1,ny-1,0) *cc + F1(nx-2,ny-1,0) *cw +
+       F1(nx-1,ny-1,0) *ce + F1(nx-1,ny-2,0) *cn +
+       F1(nx-1,ny-1,0) *cs + F1(nx-1,ny-1,0) *cb +
+       F1(nx-1,ny-1,1) *ct;
     F2(0,0,nz-1) =
-       F1(x,y,z)   *cc + F1(x,y,z)   *cw +
-       F1(x+1,y,z) *ce + F1(x,y,z)   *cn +
-       F1(x,y+1,z) *cs + F1(x,y,z-1) *cb +
-       F1(x,y,z)   *ct;
+       F1(0,0,nz-1) *cc + F1(0,0,nz-1) *cw +
+       F1(1,0,nz-1) *ce + F1(0,0,nz-1) *cn +
+       F1(0,1,nz-1) *cs + F1(0,0,nz-2) *cb +
+       F1(0,0,nz-1) *ct;
     F2(nx-1,0,nz-1) =
-       F1(x,y,z)   *cc + F1(x-1,y,z) *cw +
-       F1(x,y,z)   *ce + F1(x,y,z)   *cn +
-       F1(x,y+1,z) *cs + F1(x,y,z-1) *cb +
-       F1(x,y,z)   *ct;
+       F1(nx-1,0,nz-1) *cc + F1(nx-2,0,nz-1) *cw +
+       F1(nx-1,0,nz-1) *ce + F1(nx-1,0,nz-1) *cn +
+       F1(nx-1,1,nz-1) *cs + F1(nx-1,0,nz-2) *cb +
+       F1(nx-1,0,nz-1) *ct;
     F2(0,ny-1,nz-1) =
-       F1(x,y,z)   *cc + F1(x,y,z)   *cw +
-       F1(x+1,y,z) *ce + F1(x,y-1,z) *cn +
-       F1(x,y,z)   *cs + F1(x,y,z-1) *cb +
-       F1(x,y,z)   *ct;
-    for (int x=1; x < nx-1; x++)
+       F1(0,ny-1,nz-1) *cc + F1(0,ny-1,nz-1) *cw +
+       F1(1,ny-1,nz-1) *ce + F1(0,ny-2,nz-1) *cn +
+       F1(0,ny-1,nz-1) *cs + F1(0,ny-1,nz-2) *cb +
+       F1(0,ny-1,nz-1) *ct;
+    for (x=1; x < nx-1; ++x)
     {
       F2(x,0,0) =
-         F1(x,y,z)   *cc + F1(x-1,y,z) *cw +
-         F1(x+1,y,z) *ce + F1(x,y,z)   *cn +
-         F1(x,y+1,z) *cs + F1(x,y,z)   *cb +
-         F1(x,y,z+1) *ct;
+         F1(x,0,0)   *cc + F1(x-1,0,0) *cw +
+         F1(x+1,0,0) *ce + F1(x,0,0)   *cn +
+         F1(x,1,0)   *cs + F1(x,0,0)   *cb +
+         F1(x,0,1)   *ct;
       F2(x,ny-1,nz-1) =
-         F1(x,y,z)   *cc + F1(x-1,y,z) *cw +
-         F1(x+1,y,z) *ce + F1(x,y-1,z) *cn +
-         F1(x,y,z)   *cs + F1(x,y,z-1) *cb +
-         F1(x,y,z)   *ct;
+         F1(x,ny-1,nz-1)   *cc + F1(x-1,ny-1,nz-1) *cw +
+         F1(x+1,ny-1,nz-1) *ce + F1(x,ny-2,nz-1)   *cn +
+         F1(x,ny-1,nz-1)   *cs + F1(x,ny-1,nz-2)   *cb +
+         F1(x,ny-1,nz-1)   *ct;
       F2(x,0,nz-1) =
-         F1(x,y,z)   *cc + F1(x-1,y,z) *cw +
-         F1(x+1,y,z) *ce + F1(x,y,z)   *cn +
-         F1(x,y+1,z) *cs + F1(x,y,z-1) *cb +
-         F1(x,y,z)   *ct;
+         F1(x,0,nz-1)   *cc + F1(x-1,0,nz-1) *cw +
+         F1(x+1,0,nz-1) *ce + F1(x,0,nz-1)   *cn +
+         F1(x,1,nz-1)   *cs + F1(x,0,nz-2)   *cb +
+         F1(x,0,nz-1)   *ct;
       F2(x,ny-1,0) =
-         F1(x,y,z)   *cc + F1(x-1,y,z) *cw +
-         F1(x+1,y,z) *ce + F1(x,y-1,z) *cn +
-         F1(x,y,z)   *cs + F1(x,y,z)   *cb +
-         F1(x,y,z+1) *ct;
+         F1(x,ny-1,0)   *cc + F1(x-1,ny-1,0) *cw +
+         F1(x+1,ny-1,0) *ce + F1(x,ny-2,0)   *cn +
+         F1(x,ny-1,0)   *cs + F1(x,ny-1,0)   *cb +
+         F1(x,ny-1,1)   *ct;
     }
-    for (int y=1; y < ny-1; y++)
+    for (y=1; y < ny-1; ++y)
     {
       F2(0,y,0) =
-         F1(x,y,z)   *cc + F1(x,y,z)   *cw +
-         F1(x+1,y,z) *ce + F1(x,y-1,z) *cn +
-         F1(x,y+1,z) *cs + F1(x,y,z)   *cb +
-         F1(x,y,z+1) *ct;
+         F1(0,y,0)   *cc + F1(0,y,0)   *cw +
+         F1(1,y,0)   *ce + F1(0,y-1,0) *cn +
+         F1(0,y+1,0) *cs + F1(0,y,0)   *cb +
+         F1(0,y,1)   *ct;
       F2(nx-1,y,nz-1) =
-         F1(x,y,z)   *cc + F1(x-1,y,z) *cw +
-         F1(x,y,z)   *ce + F1(x,y-1,z) *cn +
-         F1(x,y+1,z) *cs + F1(x,y,z-1) *cb +
-         F1(x,y,z)   *ct;
+         F1(nx-1,y,nz-1)   *cc + F1(nx-2,y,nz-1)   *cw +
+         F1(nx-1,y,nz-1)   *ce + F1(nx-1,y-1,nz-1) *cn +
+         F1(nx-1,y+1,nz-1) *cs + F1(nx-1,y,nz-2)   *cb +
+         F1(nx-1,y,nz-1)   *ct;
       F2(0,y,nz-1) =
-         F1(x,y,z)   *cc + F1(x,y,z)   *cw +
-         F1(x+1,y,z) *ce + F1(x,y-1,z) *cn +
-         F1(x,y+1,z) *cs + F1(x,y,z-1) *cb +
-         F1(x,y,z)   *ct;
+         F1(0,y,nz-1)   *cc + F1(0,y,nz-1)   *cw +
+         F1(1,y,nz-1)   *ce + F1(0,y-1,nz-1) *cn +
+         F1(0,y+1,nz-1) *cs + F1(0,y,nz-2)   *cb +
+         F1(0,y,nz-1)   *ct;
       F2(nx-1,y,0) =
-         F1(x,y,z)   *cc + F1(x-1,y,z) *cw +
-         F1(x,y,z)   *ce + F1(x,y-1,z) *cn +
-         F1(x,y+1,z) *cs + F1(x,y,z)   *cb +
-         F1(x,y,z+1) *ct;
+         F1(x-1,y,0)   *cc + F1(x-2,y,0)   *cw +
+         F1(x-1,y,0)   *ce + F1(x-1,y-1,0) *cn +
+         F1(x-1,y+1,0) *cs + F1(x-1,y,0)   *cb +
+         F1(x-1,y,1)   *ct;
     }
-    for (int z=1; z < nz-1; z++)
+    for (z=1; z < nz-1; ++z)
     {
       F2(0,0,z) =
-         F1(x,y,z)   *cc + F1(x,y,z)   *cw +
-         F1(x+1,y,z) *ce + F1(x,y,z)   *cn +
-         F1(x,y+1,z) *cs + F1(x,y,z-1) *cb +
-         F1(x,y,z+1) *ct;
+         F1(0,0,z)   *cc + F1(0,0,z)   *cw +
+         F1(1,0,z)   *ce + F1(0,0,z)   *cn +
+         F1(0,1,z)   *cs + F1(0,0,z-1) *cb +
+         F1(0,0,z+1) *ct;
       F2(nx-1,ny-1,z) =
-         F1(x,y,z)   *cc + F1(x-1,y,z) *cw +
-         F1(x,y,z)   *ce + F1(x,y-1,z) *cn +
-         F1(x,y,z)   *cs + F1(x,y,z-1) *cb +
-         F1(x,y,z+1) *ct;
+         F1(nx-1,ny-1,z)   *cc + F1(nx-2,ny-1,z)   *cw +
+         F1(nx-1,ny-1,z)   *ce + F1(nx-1,ny-2,z)   *cn +
+         F1(nx-1,ny-1,z)   *cs + F1(nx-1,ny-1,z-1) *cb +
+         F1(nx-1,ny-1,z+1) *ct;
       F2(0,ny-1,z) =
-         F1(x,y,z)   *cc + F1(x,y,z)   *cw +
-         F1(x+1,y,z) *ce + F1(x,y-1,z) *cn +
-         F1(x,y,z)   *cs + F1(x,y,z-1) *cb +
-         F1(x,y,z+1) *ct;
+         F1(0,ny-1,z)   *cc + F1(0,ny-1,z)   *cw +
+         F1(1,ny-1,z)   *ce + F1(0,ny-2,z)   *cn +
+         F1(0,ny-1,z)   *cs + F1(0,ny-1,z-1) *cb +
+         F1(0,ny-1,z+1) *ct;
       F2(nx-1,0,z) =
-         F1(x,y,z)   *cc + F1(x-1,y,z) *cw +
-         F1(x,y,z)   *ce + F1(x,y,z)   *cn +
-         F1(x,y+1,z) *cs + F1(x,y,z-1) *cb +
-         F1(x,y,z+1) *ct;
+         F1(nx-1,0,z)   *cc + F1(nx-2,0,z)   *cw +
+         F1(nx-1,0,z)   *ce + F1(nx-1,0,z)   *cn +
+         F1(nx-1,1,z)   *cs + F1(nx-1,0,z-1) *cb +
+         F1(nx-1,0,z+1) *ct;
     }
-    for (int y=1; y < ny-1; y++)
+    for (y=1; y < ny-1; ++y)
     {
-      for (int x=1; x < nx-1; x++)
+      for (x=1; x < nx-1; ++x)
       {
         F2(x,y,0) =
-             F1(x,y,z)   *cc + F1(x-1,y,z) *cw +
-             F1(x+1,y,z) *ce + F1(x,y-1,z) *cn +
-             F1(x,y+1,z) *cs + F1(x,y,z)   *cb +
-             F1(x,y,z+1) *ct;
+             F1(x,y,0)   *cc + F1(x-1,y,0) *cw +
+             F1(x+1,y,0) *ce + F1(x,y-1,0) *cn +
+             F1(x,y+1,0) *cs + F1(x,y,0)   *cb +
+             F1(x,y,1) *ct;
         F2(x,y,nz-1) =
-             F1(x,y,z)   *cc + F1(x-1,y,z) *cw +
-             F1(x+1,y,z) *ce + F1(x,y-1,z) *cn +
-             F1(x,y+1,z) *cs + F1(x,y,z-1) *cb +
-             F1(x,y,z)   *ct;
+             F1(x,y,nz-1)   *cc + F1(x-1,y,nz-1) *cw +
+             F1(x+1,y,nz-1) *ce + F1(x,y-1,nz-1) *cn +
+             F1(x,y+1,nz-1) *cs + F1(x,y,nz-2) *cb +
+             F1(x,y,nz-1)   *ct;
       }
     }
-    for (int z=1; z < nz-1; z++)
+    for (z=1; z < nz-1; ++z)
     {
-      for (int x=1; x < nx-1; x++)
+      for (x=1; x < nx-1; ++x)
       {
         F2(x,0,z) =
-             F1(x,y,z)   *cc + F1(x-1,y,z) *cw +
-             F1(x+1,y,z) *ce + F1(x,y,z)   *cn +
-             F1(x,y+1,z) *cs + F1(x,y,z-1) *cb +
-             F1(x,y,z+1) *ct;
+             F1(x,0,z)   *cc + F1(x-1,0,z) *cw +
+             F1(x+1,0,z) *ce + F1(x,0,z)   *cn +
+             F1(x,1,z) *cs + F1(x,0,z-1) *cb +
+             F1(x,0,z+1) *ct;
         F2(x,ny-1,z) =
-             F1(x,y,z)   *cc + F1(x-1,y,z) *cw +
-             F1(x+1,y,z) *ce + F1(x,y-1,z) *cn +
-             F1(x,y,z)   *cs + F1(x,y,z-1) *cb +
-             F1(x,y,z+1) *ct;
+             F1(x,ny-1,z)   *cc + F1(x-1,ny-1,z) *cw +
+             F1(x+1,ny-1,z) *ce + F1(x,ny-2,z) *cn +
+             F1(x,ny-1,z)   *cs + F1(x,ny-1,z-1) *cb +
+             F1(x,ny-1,z+1) *ct;
       }
-      for (int y=1; y < ny-1; y++)
+      for (y=1; y < ny-1; ++y)
       {
         F2(0,y,z) =
-             F1(x,y,z)   *cc + F1(x,y,z)   *cw +
-             F1(x+1,y,z) *ce + F1(x,y-1,z) *cn +
-             F1(x,y+1,z) *cs + F1(x,y,z-1) *cb +
-             F1(x,y,z+1) *ct;
+             F1(0,y,z)   *cc + F1(0,y,z)   *cw +
+             F1(1,y,z)   *ce + F1(0,y-1,z) *cn +
+             F1(0,y+1,z) *cs + F1(0,y,z-1) *cb +
+             F1(0,y,z+1) *ct;
         F2(nx-1,y,z) =
-             F1(x,y,z)   *cc + F1(x-1,y,z) *cw +
-             F1(x,y,z)   *ce + F1(x,y-1,z) *cn +
-             F1(x,y+1,z) *cs + F1(x,y,z-1) *cb +
-             F1(x,y,z+1) *ct;
-        for (int x = 1; x < nx-1; x++)
+             F1(nx-1,y,z)   *cc + F1(nx-2,y,z)   *cw +
+             F1(nx-1,y,z)   *ce + F1(nx-1,y-1,z) *cn +
+             F1(nx-1,y+1,z) *cs + F1(nx-1,y,z-1) *cb +
+             F1(nx-1,y,z+1) *ct;
+        for (x = 1; x < nx-1; ++x)
         {
           F2(x,y,z) =
              F1(x,y,z)   *cc + F1(x-1,y,z) *cw +

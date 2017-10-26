@@ -105,10 +105,10 @@ void diffusion (REAL * F1, REAL * F2,
          F1(0,y+1,nz-1) *cs + F1(0,y,nz-2)   *cb +
          F1(0,y,nz-1)   *ct;
       F2(nx-1,y,0) =
-         F1(x-1,y,0)   *cc + F1(x-2,y,0)   *cw +
-         F1(x-1,y,0)   *ce + F1(x-1,y-1,0) *cn +
-         F1(x-1,y+1,0) *cs + F1(x-1,y,0)   *cb +
-         F1(x-1,y,1)   *ct;
+         F1(nx-1,y,0)   *cc + F1(nx-2,y,0)   *cw +
+         F1(nx-1,y,0)   *ce + F1(nx-1,y-1,0) *cn +
+         F1(nx-1,y+1,0) *cs + F1(nx-1,y,0)   *cb +
+         F1(nx-1,y,1)   *ct;
     }
     for (z=1; z < nz-1; ++z)
     {

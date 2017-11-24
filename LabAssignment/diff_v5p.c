@@ -1,0 +1,178 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+
+#ifndef REAL
+#define REAL float
+#endif
+
+#ifndef M_PI
+#define M_PI (3.1415926535897932384626)
+#endif
+
+// v1: change the order of memory storage to speed up the Cache acces
+#define F1(x,y,z) F1[((ny)*(nx)*(z))+((nx)*(y))+(x)]
+#define F2(x,y,z) F2[((ny)*(nx)*(z))+((nx)*(y))+(x)]
+
+void printXYsurface(REAL *F1, const int nx, const int ny, const int nz)
+{
+  int i, j, k;
+  k = nz / 2;
+  for (j = 0; j < ny; ++j)
+  {
+    printf("z%d <- c(", j+1);
+    for (i = 0; i < nx; ++i)
+    {
+      if (i < nx-1)
+        printf("%f, ", F1(i,j,k));
+      else
+        printf("%f)\n", F1(i,j,k));
+    }
+  }
+  printf("z <- c(");
+  for (j=0; j < ny;++j)
+  {
+    if (j == ny-1)
+      printf("z%d)\n", j+1);
+    else
+      printf("z%d, ", j+1);
+  }
+
+}
+
+void diffusion (REAL * F1, REAL * F2, 
+                int nx, int ny, int nz,
+                REAL ce, REAL cw, REAL cn, REAL cs, REAL ct,
+                REAL cb, REAL cc, int time)
+{
+  int t, x, y, z;
+            int west, east, north, south, top, down;
+  for (t = 0; t < time; ++t) 
+  {
+    for (z=0; z < nz; z++)
+    {
+      if (z == 0)    down= 0;  else down= z - 1;
+      if (z == nz-1) top=  z;  else top = z + 1;
+
+      for (y = 0; y < ny; y++)
+      {
+        if (y == 0)    north= y;  else north= y - 1;
+        if (y == ny-1) south= y;  else south= y + 1;
+
+        F2(0,y,z) =
+           F1(0,y,z)     *cc +  F1(0,y,z)     *cw +
+           F1(1,y,z)     *ce +  F1(0,north,z) *cn +
+           F1(0,south,z) *cs +  F1(0,y,down)  *cb +
+           F1(0,y,top)   *ct;
+
+        F2(nx-1,y,z) =
+           F1(nx-1,y,z)     *cc +  F1(nx-2,y,z)     *cw +
+           F1(nx-1,y,z)     *ce +  F1(nx-1,north,z) *cn +
+           F1(nx-1,south,z) *cs +  F1(nx-1,y,down)  *cb +
+           F1(nx-1,y,top)   *ct;
+
+        #pragma omp simd
+        for (x = 1; x < nx-1; x++)
+        {
+          F2(x,y,z) =
+             F1(x,y,z)     *cc +  F1(x-1,y,z)  *cw +
+             F1(x+1,y,z)  *ce +  F1(x,north,z) *cn +
+             F1(x,south,z) *cs +  F1(x,y,down)  *cb +
+             F1(x,y,top)   *ct;
+        }
+      }
+    }
+    printXYsurface(F1, nx, ny, nz);
+    REAL *tt = F1;   F1 = F2;  F2 = tt;  // swap matrices
+  }
+}
+
+void init (REAL *F1, const int nx, const int ny, const int nz,
+           const REAL kx, const REAL ky, const REAL kz,
+           const REAL dx, const REAL dy, const REAL dz,
+           const REAL kappa, const REAL time)
+{
+  REAL ax, ay, az;
+  int jz, jy, jx;
+  ax = exp(-kappa*time*(kx*kx));
+  ay = exp(-kappa*time*(ky*ky));
+  az = exp(-kappa*time*(kz*kz));
+  for (jz = 0; jz < nz; jz++) 
+    for (jy = 0; jy < ny; jy++) 
+      for (jx = 0; jx < nx; jx++)
+      {
+        REAL x = dx*((REAL)(jx + 0.5));
+        REAL y = dy*((REAL)(jy + 0.5));
+        REAL z = dz*((REAL)(jz + 0.5));
+        REAL f0 = (REAL)0.125
+          *(1.0 - ax*cos(kx*x))
+          *(1.0 - ay*cos(ky*y))
+          *(1.0 - az*cos(kz*z));
+        F1(jx,jy,jz) = f0;
+      }
+}
+
+REAL sum_values (REAL *F1, const int nx, const int ny, const int nz)
+{
+  REAL sum=0.0;
+  int jz, jy, jx;
+  for (jz = 0; jz < nz; jz++)
+    for (jy = 0; jy < ny; jy++)
+      for (jx = 0; jx < nx; jx++)
+        sum += F1(jx,jy,jz);
+  return sum;
+}
+
+int main(int argc, char *argv[]) 
+{ 
+  int  jz, jy, jx;
+  int  NX=128, NY=128, NZ=128;
+
+  if (argc>1) { NX= atoi(argv[1]); } // get  first command line parameter
+  if (argc>2) { NY= atoi(argv[2]); } // get second command line parameter
+  if (argc>3) { NZ= atoi(argv[3]); } // get  third command line parameter
+  if (NX < 1 || NY < 1 || NZ < 1)
+  {
+    printf("arguments: NX NY NZ\n");
+    return 1;
+  }
+
+  REAL *f1 = (REAL *) malloc(sizeof(REAL)*NX*NY*NZ);
+  REAL *f2 = (REAL *) malloc(sizeof(REAL)*NX*NY*NZ);
+
+  REAL *f_final = NULL;
+
+  REAL  time  = 0.0;
+  int   count = 0;  
+
+  REAL l, dx, dy, dz, kx, ky, kz, kappa, dt;
+  REAL ce, cw, cn, cs, ct, cb, cc;
+
+  l = 1.0;
+  kappa = 0.1;
+  dx = l / NX;  dy = l / NY;  dz = l / NZ;
+  kx = ky = kz = 2.0 * M_PI;
+  dt = dx*dy*dz / kappa;
+  count = 0.01 / dt;
+  f_final = (count % 2)? f2 : f1;
+
+  init(f1, NX, NY, NZ, kx, ky, kz, dx, dy, dz, kappa, time);
+
+  REAL err = sum_values(f1, NX, NY, NZ);
+
+  ce = cw = kappa*dt/(dx*dx);
+  cn = cs = kappa*dt/(dy*dy);
+  ct = cb = kappa*dt/(dz*dz);
+  cc = 1.0 - (ce + cw + cn + cs + ct + cb);
+
+  printf("Running diffusion kernel with NX=%d, NY=%d, NZ=%d, %d times\n", 
+         NX, NY, NZ, count);
+
+  diffusion(f1, f2, NX, NY, NZ, ce, cw, cn, cs, ct, cb, cc, count);
+
+  err = err - sum_values(f_final, NX, NY, NZ);
+  fprintf(stderr, "Accuracy     : %E\n", err);
+  
+  free(f1); free(f2);
+  return 0;
+}

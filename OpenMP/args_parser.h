@@ -3,11 +3,12 @@
 #include <stdio.h>
 #include <omp.h>
 
+#define ARGS_NUM 5
+
 const int DEFAULT_N = 4096;
 const int DEFAULT_ITER_MAX = 1000;
 const bool DEFAULT_OUT = false;
 const char DEFAULT_FILE_DIR[50] = "lapFusion_results.tsv";
-const int ARGS_NUM = 5;
 const char ARGS[ARGS_NUM][10] = {"-N", "-I", "-T", "-O", "-F"};
 
 struct Args{
@@ -56,7 +57,7 @@ struct Args args_parser(int argc, char *argv[])
       }
     }
   }
-  if (n<1 | n>DEFAULT_N){
+  if (n<1 | n>8192){
     printf("\'N\' out of range, using default value (%d)\n", DEFAULT_N);
     n = DEFAULT_N;
   }

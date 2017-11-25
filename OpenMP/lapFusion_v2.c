@@ -4,8 +4,7 @@
 #include <stdlib.h>
 #include <omp.h>
 #include <sys/time.h>
-
-#define NUM_THREADS 4
+#include "args_parser.h"
 
 float stencil ( float v1, float v2, float v3, float v4)
 {
@@ -18,7 +17,7 @@ float max_error ( float prev_error, float old, float new )
   return t>prev_error? t: prev_error;
 }
 
-float laplace_step(float *in, float *out, int n)
+float laplace_step(float *in, float *out, int n, int num_threads)
 {
   int j;
   float error=0.0f;
@@ -27,8 +26,8 @@ float laplace_step(float *in, float *out, int n)
     {
       int i, id, istart, iend;
       id = omp_get_thread_num();
-      istart = id * (n-1) / NUM_THREADS + 1;
-      iend = (id+1) * (n-1) / NUM_THREADS + 1;
+      istart = id * (n-1) / num_threads + 1;
+      iend = (id+1) * (n-1) / num_threads + 1;
       //printf("%d, %d,%d\n", id, istart, iend);
       for ( i=istart; i < iend; i++ )
       {
@@ -38,7 +37,6 @@ float laplace_step(float *in, float *out, int n)
     }
   return error;
 }
-
 
 void laplace_init(float *in, int n)
 {
@@ -52,21 +50,44 @@ void laplace_init(float *in, int n)
   }
 }
 
+void print_matrix(float *matrix, int n, char file_dir[50])
+{
+  int i, j;
+  FILE *f = fopen(file_dir, "w");
+
+  if (f == NULL)
+  {
+    printf("Error opening file!\n");
+    exit(1);
+  }
+
+  for(i = 0; i < n; i++)
+  {
+    for(j = 0; j < n; j++) fprintf(f, "%f\t", matrix[i*n+j]);
+    fprintf(f, "\n");
+  }
+
+  fclose(f);
+}
+
 int main(int argc, char** argv)
 {
-  int n = 4096;
-  int iter_max = 1000;
   float *A, *temp;
   struct timeval t0, t1;
+
+  // get runtime arguments
+  struct Args parsed_args = args_parser(argc, argv);
+  int n = parsed_args.n;
+  int iter_max = parsed_args.iter_max;
+  int num_threads = parsed_args.num_threads;
+  bool out = parsed_args.out;
+  char *file_dir = malloc(50);
+  strcpy(file_dir, parsed_args.file_dir);
 
   gettimeofday(&t0, 0);
 
   const float tol = 1.0e-5f;
   float error= 1.0f;
-
-  // get runtime arguments
-  if (argc>1) {  n        = atoi(argv[1]); }
-  if (argc>2) {  iter_max = atoi(argv[2]); }
 
   A    = (float*) malloc( n*n*sizeof(float) );
   temp = (float*) malloc( n*n*sizeof(float) );
@@ -75,42 +96,26 @@ int main(int argc, char** argv)
   laplace_init (A, n);
   laplace_init (temp, n);
 
-  /*
-  int i, j;
-  for(i = 0; i < n; i++){
-    for(j = 0; j < n; j++){
-      printf("%f\t", A[i*n+j]);
-    }
-    printf("\n");
-  }
-  */
-
   A[(n/128)*n+n/128] = 1.0f; // set singular point
 
+  omp_set_num_threads(num_threads);
+
   printf("Jacobi relaxation Calculation: %d x %d mesh,"
-         " maximum of %d iterations\n",
-         n, n, iter_max );
+         " maximum of %d iterations, using %d threads\n",
+         n, n, iter_max, num_threads);
 
   int iter = 0;
-
-  omp_set_num_threads(NUM_THREADS);
-
   while ( error > tol*tol && iter < iter_max )
   {
     iter++;
-    error= laplace_step (A, temp, n);
+    error= laplace_step (A, temp, n, num_threads);
     float *swap= A; A=temp; temp= swap; // swap pointers A & temp
   }
+
   error = sqrtf( error );
 
-  /*
-  for(i = 0; i < n; i++){
-    for(j = 0; j < n; j++){
-      printf("%f\t", A[i*n+j]);
-    }
-    printf("\n");
-  }
-  */
+  if (out)
+    print_matrix(A, n, file_dir);
 
   gettimeofday(&t1, 0);
 

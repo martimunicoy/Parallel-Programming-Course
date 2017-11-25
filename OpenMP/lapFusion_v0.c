@@ -22,11 +22,13 @@ float laplace_step(float *in, float *out, int n)
   int i, j;
   float error=0.0f;
   for ( j=1; j < n-1; j++ )
-    #pragma omp parallel for simd reduction(max:error)
+    #pragma omp simd
+    {
     for ( i=1; i < n-1; i++ )
     {
       out[j*n+i]= stencil(in[j*n+i+1], in[j*n+i-1], in[(j-1)*n+i], in[(j+1)*n+i]);
       error = max_error( error, out[j*n+i], in[j*n+i] );
+    }
     }
   return error;
 }

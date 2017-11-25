@@ -4,7 +4,12 @@
 #include <stdlib.h>
 #include <omp.h>
 #include <sys/time.h>
+#include <stdbool.h>
 #include "args_parser.h"
+
+int iter;
+float error;
+#pragma omp threadprivate(iter,error)
 
 float stencil ( float v1, float v2, float v3, float v4)
 {
@@ -20,15 +25,18 @@ float max_error ( float prev_error, float old, float new )
 float laplace_step(float *in, float *out, int n)
 {
   int i, j;
-  float error=0.0f;
+  float local_error = 0.0f;
+  #pragma omp for
   for ( j=1; j < n-1; j++ )
-    #pragma omp parallel for simd reduction(max:error)
+  {
+    #pragma omp simd
     for ( i=1; i < n-1; i++ )
     {
       out[j*n+i]= stencil(in[j*n+i+1], in[j*n+i-1], in[(j-1)*n+i], in[(j+1)*n+i]);
-      error = max_error( error, out[j*n+i], in[j*n+i] );
+      local_error = max_error( local_error, out[j*n+i], in[j*n+i] );
     }
-  return error;
+  }
+  return local_error;
 }
 
 void laplace_init(float *in, int n)
@@ -63,7 +71,7 @@ void print_matrix(float *matrix, int n, char file_dir[50])
   fclose(f);
 }
 
-int main(int argc, char** argv)
+int main(int argc, char* argv[])
 {
   float *A, *temp;
   struct timeval t0, t1;
@@ -80,7 +88,6 @@ int main(int argc, char** argv)
   gettimeofday(&t0, 0);
 
   const float tol = 1.0e-5f;
-  float error= 1.0f;
 
   A    = (float*) malloc( n*n*sizeof(float) );
   temp = (float*) malloc( n*n*sizeof(float) );
@@ -97,14 +104,18 @@ int main(int argc, char** argv)
          " maximum of %d iterations, using %d threads\n",
          n, n, iter_max, num_threads);
 
-  int iter = 0;
-  while ( error > tol*tol && iter < iter_max )
-  {
-    iter++;
-    error= laplace_step (A, temp, n);
-    float *swap= A; A=temp; temp= swap; // swap pointers A & temp
-  }
+  iter = 0;
+  error = 1.0f;
 
+  #pragma omp parallel firstprivate(A,temp) copyin(iter,error)
+  {
+    while ( (error > tol*tol || iter == 0) && iter < iter_max )
+    {
+      iter++;
+      error = laplace_step (A, temp, n);
+      float *swap= A; A=temp; temp= swap; // swap pointers A & temp
+    }
+  }
   error = sqrtf( error );
 
   if (out)

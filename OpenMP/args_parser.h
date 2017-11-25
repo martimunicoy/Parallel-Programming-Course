@@ -3,13 +3,14 @@
 #include <stdio.h>
 #include <omp.h>
 
-#define ARGS_NUM 5
+#define ARGS_NUM 6
 
 const int DEFAULT_N = 4096;
 const int DEFAULT_ITER_MAX = 1000;
 const bool DEFAULT_OUT = false;
 const char DEFAULT_FILE_DIR[50] = "lapFusion_results.tsv";
-const char ARGS[ARGS_NUM][10] = {"-N", "-I", "-T", "-O", "-F"};
+const bool DEFAULT_COUNT = false;
+const char ARGS[ARGS_NUM][10] = {"-N", "-I", "-T", "-O", "-F", "-C"};
 
 struct Args{
   int n;
@@ -17,6 +18,7 @@ struct Args{
   int num_threads;
   bool out;
   char *file_dir;
+  bool count;
 };
 
 bool startsWith(const char *string, const char *prefix){
@@ -38,17 +40,19 @@ struct Args args_parser(int argc, char *argv[])
   bool out = DEFAULT_OUT;
   char *file_dir = malloc(50);
   strcpy(file_dir, DEFAULT_FILE_DIR);
+  bool count = DEFAULT_COUNT;
 
   for (int i = 1; i < argc; i++){
     for (int j = 0; j < ARGS_NUM; j++){
       if (startsWith(*(argv + i), ARGS[j])){
         if (j == 3) out = true;
-        if (i + 2 <= argc)
+        else if (j == 5) count = true;
+        else if (i + 2 <= argc)
         {
           if (j == 0) n = atoi(*(argv + i + 1));
-          if (j == 1) iter_max = atoi(*(argv + i + 1));
-          if (j == 2) num_threads = atoi(*(argv + i + 1));
-          if (j == 4) strcpy(file_dir, *(argv + i + 1));
+          else if (j == 1) iter_max = atoi(*(argv + i + 1));
+          else if (j == 2) num_threads = atoi(*(argv + i + 1));
+          else if (j == 4) strcpy(file_dir, *(argv + i + 1));
         }
         else{
           printf("Wrong command, using default values.\n");
@@ -73,6 +77,6 @@ struct Args args_parser(int argc, char *argv[])
     printf("Wrong \'file_dir\', using default name (%s)\n", DEFAULT_FILE_DIR);
     strcpy(file_dir, DEFAULT_FILE_DIR);
   }
-  struct Args parsed_args = {n, iter_max, num_threads, out, file_dir};
+  struct Args parsed_args = {n, iter_max, num_threads, out, file_dir, count};
   return parsed_args;
 }

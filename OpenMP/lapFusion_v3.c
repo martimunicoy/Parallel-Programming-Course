@@ -87,8 +87,9 @@ int main(int argc, char* argv[])
   bool out = parsed_args.out;
   char *file_dir = malloc(50);
   strcpy(file_dir, parsed_args.file_dir);
+  bool count = parsed_args.count;
 
-  gettimeofday(&t0, 0);
+  if (count) gettimeofday(&t0, 0);
 
   const float tol = 1.0e-5f;
   float error= 1.0f;
@@ -120,12 +121,17 @@ int main(int argc, char* argv[])
   if (out)
     print_matrix(A, n, file_dir);
 
-  gettimeofday(&t1, 0);
-
-  long int diff = (t1.tv_sec - t0.tv_sec) *1000000L + t1.tv_usec - t0.tv_usec;
-
   printf("Total Iterations: %5d, ERROR: %0.6f, ", iter, error);
-  printf("A[%d][%d]= %0.6f, Running time: %ld\n", n/128, n/128, A[(n/128)*n+n/128], diff);
+  printf("A[%d][%d]= %0.6f", n/128, n/128, A[(n/128)*n+n/128]);
 
+  if (count)
+  {
+    gettimeofday(&t1, 0);
+    long int diff = (t1.tv_sec - t0.tv_sec) *1000000L + t1.tv_usec - t0.tv_usec;
+    printf(", Running time: %ld\n", diff);
+  }
+  else printf("\n");
+
+  free(file_dir);
   free(A); free(temp);
 }

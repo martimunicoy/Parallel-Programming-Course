@@ -32,8 +32,7 @@ float laplace_step(float *in, float *out, int n)
     #pragma omp simd
     for ( i=1; i < n; i++ )
     {
-      out[j*n+i]= stencil(in[j*n+i+1], in[j*n+i-1], in[(j-1)*n+i],
-                          in[(j+1)*n+i]);
+      out[j*n+i]= stencil(in[j*n+i+1], in[j*n+i-1], in[(j-1)*n+i], in[(j+1)*n+i]);
       local_error = max_error( local_error, out[j*n+i], in[j*n+i] );
     }
   }
@@ -65,10 +64,13 @@ void print_matrix(float *matrix, int n, char file_dir[50])
 
   for(i = 0; i < n; i++)
   {
-    for(j = 0; j < n-1; j++) fprintf(f, "%f\t", matrix[i*n+j]);
-    fprintf(f, "%f", matrix[i*n+j+1]);
-    fprintf(f, "\n");
+    fprintf(f, "z%d <- c(", i+1);
+    for(j = 0; j < n-1; j++) fprintf(f, "%f,", matrix[i*n+j]);
+    fprintf(f, "%f)\n", matrix[i*n+j+1]);
   }
+  fprintf(f, "z <- c(");
+  for(i = 0; i < n-1; i++) fprintf(f, "z%d,", i+1);
+  fprintf(f, "z%d)", n);
 
   fclose(f);
 }
@@ -109,7 +111,6 @@ int main(int argc, char* argv[])
 
   iter = 0;
   error = 1.0f;
-  float errors_list[num_threads];
 
   #pragma omp parallel firstprivate(A,temp) copyin(iter,error)
   {
@@ -119,16 +120,10 @@ int main(int argc, char* argv[])
       error = laplace_step (A, temp, n);
       float *swap= A; A=temp; temp= swap; // swap pointers A & temp
     }
-    errors_list[omp_get_thread_num()] = error;
   }
-
-  int i;
-  for(i=0; i<num_threads; i++)
-    if(errors_list[i] > error) error=errors_list[i];
   error = sqrtf( error );
 
-  if (out)
-    print_matrix(A, n, file_dir);
+
 
   printf("Total Iterations: %5d, ERROR: %0.6f, ", iter, error);
   printf("A[%d][%d]= %0.6f", n/128, n/128, A[(n/128)*n+n/128]);

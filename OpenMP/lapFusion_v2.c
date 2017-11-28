@@ -28,7 +28,6 @@ float laplace_step(float *in, float *out, int n, int num_threads)
       id = omp_get_thread_num();
       istart = id * (n-1) / num_threads + 1;
       iend = (id+1) * (n-1) / num_threads + 1;
-      //printf("%d, %d,%d\n", id, istart, iend);
       for ( i=istart; i < iend; i++ )
       {
         out[j*n+i]= stencil(in[j*n+i+1], in[j*n+i-1], in[(j-1)*n+i], in[(j+1)*n+i]);

@@ -30,7 +30,7 @@ float laplace_step(float *in, float *out, int n, int num_threads)
     jend = (id+1) * (n-2) / num_threads + 1;
     for ( j=jstart; j < jend; j++ )
     {
-      for ( i=1; i < (n); i++ )
+      for ( i=0; i < (n); i++ )
       {
         out[j*n+i]= stencil(in[j*n+i+1], in[j*n+i-1], in[(j-1)*n+i], in[(j+1)*n+i]);
         error = max_error( error, out[j*n+i], in[j*n+i] );

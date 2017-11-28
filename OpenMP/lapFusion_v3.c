@@ -23,16 +23,18 @@ float laplace_step(float *in, float *out, int n, int num_threads)
 {
   int i, j, id, jstart, jend;
   float error=0.0f;
-  #pragma omp parallel reduction(max:error) private(i, j, id, jstart, jend)
+  #pragma omp parallel reduction(max:error) \
+    private(i, j, id, jstart, jend)
   {
     id = omp_get_thread_num();
     jstart = id * (n-2) / num_threads + 1;
     jend = (id+1) * (n-2) / num_threads + 1;
     for ( j=jstart; j < jend; j++ )
     {
-      for ( i=0; i < (n); i++ )
+      for ( i=0; i < n; i++ )
       {
-        out[j*n+i]= stencil(in[j*n+i+1], in[j*n+i-1], in[(j-1)*n+i], in[(j+1)*n+i]);
+        out[j*n+i]= stencil(in[j*n+i+1], in[j*n+i-1],
+                    in[(j-1)*n+i], in[(j+1)*n+i]);
         error = max_error( error, out[j*n+i], in[j*n+i] );
       }
     }

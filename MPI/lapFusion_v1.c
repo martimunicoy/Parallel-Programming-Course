@@ -61,7 +61,10 @@ void laplace_init(struct RowsSplitter submatrix)
 void print_matrix(struct RowsSplitter submatrix, char file_dir[], int rank)
 {
     int i, j;
-    sprintf(file_dir, "%s_%d", file_dir, rank);
+    char *file_dir_temp = strdup(file_dir);
+    char *filename = strsep(&file_dir_temp, ".");
+    char *extension = strsep(&file_dir_temp, ".");
+    sprintf(file_dir, "%s_%d.%s", filename, rank, extension);
     FILE *f = fopen(file_dir, "w");
 
     if (f == NULL)

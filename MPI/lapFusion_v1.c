@@ -10,6 +10,8 @@ struct RowsSplitter{
     float *subA;
     float *subtemp;
     int n;
+    int rank;
+    int size;
     int ri;
     int rf;
 };
@@ -25,16 +27,49 @@ float max_error ( float prev_error, float old, float new )
     return t>prev_error? t: prev_error;
 }
 
-float laplace_step(float *in, float *out, int n, int rank, int size)
+void update_rows(struct RowsSplitter submatrix)
+{
+    if (submatrix.rank == 0) /* First submatrix */
+    {
+        MPI_Send(&submatrix.subA[submatrix.rf * submatrix.n], submatrix.n,
+                 MPI_FLOAT, submatrix.rank + 1, 0, MPI_COMM_WORLD);
+        MPI_Recv(&submatrix.subA[(submatrix.rf + 1) * submatrix.n],
+                 submatrix.n, MPI_FLOAT, submatrix.rank + 1, 1, MPI_COMM_WORLD,
+                 MPI_STATUS_IGNORE);
+    }
+    else if (submatrix.rank == submatrix.size - 1) /* Last submatrix */
+    {
+        MPI_Send(&submatrix.subA[submatrix.n], submatrix.n, MPI_FLOAT,
+                 submatrix.rank - 1, 1, MPI_COMM_WORLD);
+        MPI_Recv(&submatrix.subA[0], submatrix.n, MPI_FLOAT,
+                 submatrix.rank - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+    else /* Inner submatrix */
+    {
+        MPI_Send(&submatrix.subA[submatrix.rf * submatrix.n], submatrix.n,
+                 MPI_FLOAT, submatrix.rank + 1, 0, MPI_COMM_WORLD);
+        MPI_Send(&submatrix.subA[submatrix.n], submatrix.n, MPI_FLOAT,
+                 submatrix.rank - 1, 1, MPI_COMM_WORLD);
+        MPI_Recv(&submatrix.subA[0], submatrix.n, MPI_FLOAT,
+                 submatrix.rank - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Recv(&submatrix.subA[(submatrix.rf + 1) * submatrix.n],
+                 submatrix.n, MPI_FLOAT, submatrix.rank + 1, 1, MPI_COMM_WORLD,
+                 MPI_STATUS_IGNORE);
+    }
+}
+
+float laplace_step(struct RowsSplitter submatrix)
 {
     int i, j;
     float error=0.0f;
+    /*
     for (j = n*rank/size; j < n*(rank + 1)/size; j++)
         for (i=0; i < n; i++)
         {
           out[j*n+i]= stencil(in[j*n+i+1], in[j*n+i-1], in[(j-1)*n+i], in[(j+1)*n+i]);
           error = max_error( error, out[j*n+i], in[j*n+i] );
         }
+    */
     return error;
 }
 
@@ -120,7 +155,7 @@ int main(int argc, char** argv)
     float *subtemp = (float *) malloc(n * sizeof(float) * (rf - ri) + 2 * n * sizeof(float));
 
     // Initiate RowsSplitter struct
-    struct RowsSplitter submatrix = {subA, subtemp, n, ri, rf};
+    struct RowsSplitter submatrix = {subA, subtemp, n, rank, size, ri, rf};
 
     printf("n: %d, ri: %d, rf: %d\n", n, ri, rf);
 
@@ -129,6 +164,8 @@ int main(int argc, char** argv)
 
     printf("Initialized!\n");
 
+
+    update_rows(submatrix);
     print_matrix(submatrix, parsed_args.file_dir, rank);
 
     /*

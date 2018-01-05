@@ -6,7 +6,7 @@
 #include "args_parser.h"
 #include <mpi.h>
 
-struct RowsSplitter{
+struct Submatrix{
     float *subA;
     float *subtemp;
     int n;
@@ -14,9 +14,10 @@ struct RowsSplitter{
     int size;
     int ri;
     int rf;
+    int subrows;
 };
 
-float stencil ( float v1, float v2, float v3, float v4)
+float stencil (float v1, float v2, float v3, float v4)
 {
     return (v1 + v2 + v3 + v4) * 0.25f;
 }
@@ -27,79 +28,94 @@ float max_error ( float prev_error, float old, float new )
     return t>prev_error? t: prev_error;
 }
 
-void update_rows(struct RowsSplitter submatrix)
+void update_rows(struct Submatrix submatrix)
 {
+    int previous    = submatrix.rank - 1;
+    int next        = submatrix.rank + 1;
+    int fst_row     = 0;
+    int snd_row     = submatrix.n;
+    int sndlast_row = submatrix.subrows * submatrix.n;
+    int last_row    = (submatrix.subrows + 1) * submatrix.n;
+
     if (submatrix.rank == 0) /* First submatrix */
     {
-        MPI_Send(&submatrix.subA[submatrix.rf * submatrix.n], submatrix.n,
-                 MPI_FLOAT, submatrix.rank + 1, 0, MPI_COMM_WORLD);
-        MPI_Recv(&submatrix.subA[(submatrix.rf + 1) * submatrix.n],
-                 submatrix.n, MPI_FLOAT, submatrix.rank + 1, 1, MPI_COMM_WORLD,
-                 MPI_STATUS_IGNORE);
+        MPI_Send(&submatrix.subA[sndlast_row], submatrix.n, MPI_FLOAT, next, 0,
+                 MPI_COMM_WORLD);
+        MPI_Recv(&submatrix.subA[last_row], submatrix.n, MPI_FLOAT, next, 0,
+                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     }
     else if (submatrix.rank == submatrix.size - 1) /* Last submatrix */
     {
-        MPI_Send(&submatrix.subA[submatrix.n], submatrix.n, MPI_FLOAT,
-                 submatrix.rank - 1, 1, MPI_COMM_WORLD);
-        MPI_Recv(&submatrix.subA[0], submatrix.n, MPI_FLOAT,
-                 submatrix.rank - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Send(&submatrix.subA[snd_row], submatrix.n, MPI_FLOAT,
+                 previous, 0, MPI_COMM_WORLD);
+        MPI_Recv(&submatrix.subA[fst_row], submatrix.n, MPI_FLOAT,
+                 previous, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     }
     else /* Inner submatrix */
     {
-        MPI_Send(&submatrix.subA[submatrix.rf * submatrix.n], submatrix.n,
-                 MPI_FLOAT, submatrix.rank + 1, 0, MPI_COMM_WORLD);
-        MPI_Send(&submatrix.subA[submatrix.n], submatrix.n, MPI_FLOAT,
-                 submatrix.rank - 1, 1, MPI_COMM_WORLD);
-        MPI_Recv(&submatrix.subA[0], submatrix.n, MPI_FLOAT,
-                 submatrix.rank - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        MPI_Recv(&submatrix.subA[(submatrix.rf + 1) * submatrix.n],
-                 submatrix.n, MPI_FLOAT, submatrix.rank + 1, 1, MPI_COMM_WORLD,
-                 MPI_STATUS_IGNORE);
+        MPI_Send(&submatrix.subA[snd_row], submatrix.n, MPI_FLOAT, previous, 0,
+                 MPI_COMM_WORLD);
+        MPI_Send(&submatrix.subA[sndlast_row], submatrix.n, MPI_FLOAT, next, 0,
+                 MPI_COMM_WORLD);
+        MPI_Recv(&submatrix.subA[fst_row], submatrix.n, MPI_FLOAT, previous, 0,
+                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Recv(&submatrix.subA[last_row], submatrix.n, MPI_FLOAT, next, 0,
+                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     }
 }
 
-float laplace_step(struct RowsSplitter submatrix)
+float laplace_step(struct Submatrix sm)
 {
     int i, j;
     float error=0.0f;
-    /*
-    for (j = n*rank/size; j < n*(rank + 1)/size; j++)
-        for (i=0; i < n; i++)
+
+    int initial_row = 1;
+    int final_row = sm.subrows + 1;
+    if (sm.rank == 0)
+        ++initial_row;
+    if (sm.rank == sm.size - 1)
+        --final_row;
+
+    for (j = initial_row; j < final_row; j++)
+        for (i = 1; i < sm.n - 1; i++)
         {
-          out[j*n+i]= stencil(in[j*n+i+1], in[j*n+i-1], in[(j-1)*n+i], in[(j+1)*n+i]);
-          error = max_error( error, out[j*n+i], in[j*n+i] );
+          sm.subtemp[j * sm.n + i]= stencil(sm.subA[j * sm.n + i + 1],
+                                            sm.subA[j * sm.n + i - 1],
+                                            sm.subA[(j - 1) * sm.n + i],
+                                            sm.subA[(j + 1) * sm.n + i]);
+          error = max_error(error, sm.subtemp[j * sm.n + i],
+                            sm.subA[j * sm.n + i]);
         }
-    */
     return error;
 }
 
-void laplace_init(struct RowsSplitter submatrix)
+void laplace_init(struct Submatrix sm)
 {
-    int i, n = submatrix.n;
+    int i, n = sm.n;
     float V;
     const float pi  = 2.0f * asinf(1.0f);
 
-    memset(submatrix.subA, 0, n * sizeof(float) * (submatrix.rf - submatrix.ri) + 2 * n);
-    memset(submatrix.subtemp, 0, n * sizeof(float) * (submatrix.rf - submatrix.ri) + 2 * n);
+    memset(sm.subA, 0, n * sizeof(float) * (sm.rf - sm.ri + 2));
+    memset(sm.subtemp, 0, n * sizeof(float) * (sm.rf - sm.ri + 2));
 
-    for (i = 1; i < (submatrix.rf - submatrix.ri) + 1; i++)
+    for (i = 1; i < (sm.rf - sm.ri) + 1; i++)
     {
-        V = sinf(pi * (i + submatrix.ri - 1) / (n - 1));
-        submatrix.subA[i * n] = V;
-        submatrix.subtemp[i * n] = V;
+        V = sinf(pi * (i + sm.ri - 1) / (n - 1));
+        sm.subA[i * n] = V;
+        sm.subtemp[i * n] = V;
 
-        submatrix.subA[i * n + n - 1] = V * expf(-pi);
-        submatrix.subtemp[i * n + n - 1] = V * expf(-pi);
+        sm.subA[i * n + n - 1] = V * expf(-pi);
+        sm.subtemp[i * n + n - 1] = V * expf(-pi);
     }
 }
 
-void print_matrix(struct RowsSplitter submatrix, char file_dir[], int rank)
+void print_matrix(struct Submatrix sm, char file_dir[])
 {
     int i, j;
     char *file_dir_temp = strdup(file_dir);
     char *filename = strsep(&file_dir_temp, ".");
     char *extension = strsep(&file_dir_temp, ".");
-    sprintf(file_dir, "%s_%d.%s", filename, rank, extension);
+    sprintf(file_dir, "%s_%d.%s", filename, sm.rank, extension);
     FILE *f = fopen(file_dir, "w");
 
     if (f == NULL)
@@ -108,10 +124,10 @@ void print_matrix(struct RowsSplitter submatrix, char file_dir[], int rank)
         exit(1);
     }
 
-    for(i = 0; i < (submatrix.rf - submatrix.ri) + 2 ; i++)
+    for(i = 0; i < sm.subrows + 2; i++)
     {
-        for(j = 0; j < submatrix.n; j++)
-            fprintf(f, "%f\t", submatrix.subA[i * submatrix.n + j]);
+        for(j = 0; j < sm.n; j++)
+            fprintf(f, "%f\t", sm.subA[i * sm.n + j]);
         fprintf(f, "\n");
     }
 
@@ -120,7 +136,6 @@ void print_matrix(struct RowsSplitter submatrix, char file_dir[], int rank)
 
 int main(int argc, char** argv)
 {
-    float *A, *temp;
     struct timeval t0, t1;
 
     // get runtime arguments
@@ -147,46 +162,54 @@ int main(int argc, char** argv)
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
     // Determine initial and final rows indexes
-    int ri = n * rank / size;
-    int rf = n * (rank + 1) / size;
+    int ri      = n * rank / size;
+    int rf      = n * (rank + 1) / size;
+    int subrows = rf - ri;
 
     // Allocate memory to matrices and arrays
-    float *subA    = (float *) malloc(n * sizeof(float) * (rf - ri) + 2 * n * sizeof(float));
-    float *subtemp = (float *) malloc(n * sizeof(float) * (rf - ri) + 2 * n * sizeof(float));
+    float *subA    = (float *) malloc(n * sizeof(float) * (subrows + 2));
+    float *subtemp = (float *) malloc(n * sizeof(float) * (subrows + 2));
+    float *swap;
 
-    // Initiate RowsSplitter struct
-    struct RowsSplitter submatrix = {subA, subtemp, n, rank, size, ri, rf};
+    // Initiate Submatrix struct
+    struct Submatrix submatrix = {subA, subtemp, n, rank, size, ri, rf,
+                                  subrows};
 
+    printf("Rank: %d\n", rank);
     printf("n: %d, ri: %d, rf: %d\n", n, ri, rf);
 
     // Set boundary conditions
     laplace_init(submatrix);
 
-    printf("Initialized!\n");
-
-
     update_rows(submatrix);
-    print_matrix(submatrix, parsed_args.file_dir, rank);
 
     /*
     // set singular point
     A[(n/128)*n+n/128] = 1.0f;
+    */
 
     if (rank == 0)
-      printf("Jacobi relaxation Calculation: %d x %d mesh,"
-           " maximum of %d iterations, using %d processors\n",
-           n, n, iter_max, size);
+        printf("Jacobi relaxation Calculation: %d x %d mesh,"
+               " maximum of %d iterations, using %d processors\n",
+               n, n, iter_max, size);
 
 
-    while ( error > tol*tol && iter < iter_max )
+    //while ( error > tol*tol && iter < iter_max )
+    while (iter < iter_max)
     {
-      iter++;
-      error= laplace_step (A, temp, n, rank, size);
+        iter++;
+        error = laplace_step(submatrix);
 
-      // swap pointers A & temp
-      float *swap= A; A=temp; temp= swap;
+        // swap pointers A & temp
+        swap = submatrix.subA;
+        submatrix.subA = submatrix.subtemp;
+        submatrix.subtemp = swap;
+
+        // update rows among processes
+        update_rows(submatrix);
     }
-    */
+
+    print_matrix(submatrix, parsed_args.file_dir);
 
     // End MPI region
     MPI_Finalize();
@@ -209,5 +232,5 @@ int main(int argc, char** argv)
     printf("\n");
     */
     free(file_dir);
-    free(A); free(temp);
+    free(subA); free(subtemp);
 }

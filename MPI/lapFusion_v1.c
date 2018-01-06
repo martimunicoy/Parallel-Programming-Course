@@ -98,7 +98,7 @@ void laplace_init(struct Submatrix sm)
     memset(sm.subA, 0, n * sizeof(float) * (sm.rf - sm.ri + 2));
     memset(sm.subtemp, 0, n * sizeof(float) * (sm.rf - sm.ri + 2));
 
-    for (i = 1; i < (sm.rf - sm.ri) + 1; i++)
+    for (i = 1; i < sm.subrows + 1; i++)
     {
         V = sinf(pi * (i + sm.ri - 1) / (n - 1));
         sm.subA[i * n] = V;
@@ -109,14 +109,39 @@ void laplace_init(struct Submatrix sm)
     }
 }
 
+void send_submatrix(struct Submatrix sm)
+{
+    MPI_Send(&sm.ri, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+    MPI_Send(&sm.subrows, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+    MPI_Send(&sm.subA[sm.n], sm.subrows * sm.n, MPI_FLOAT, 0, 0,
+             MPI_COMM_WORLD);
+    /*
+    int i, j;
+    for (j = 0; j < sm.subrows; j++)
+        for (i = 0; i < sm.n; i++)
+            A[sm.n * (sm.ri + j) + i] = sm.subA[sm.n * (j + 1) + i];
+    */
+}
+
+void recv_submatrix(int origin, int n, float *A)
+{
+    int ri;
+    int subrows;
+    MPI_Recv(&ri, 1, MPI_INT, origin, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Recv(&subrows, 1, MPI_INT, origin, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Recv(&A[ri * n], subrows * n, MPI_FLOAT, origin, 0, MPI_COMM_WORLD,
+             MPI_STATUS_IGNORE);
+}
+
 void print_matrix(struct Submatrix sm, char file_dir[])
 {
     int i, j;
     char *file_dir_temp = strdup(file_dir);
     char *filename = strsep(&file_dir_temp, ".");
     char *extension = strsep(&file_dir_temp, ".");
-    sprintf(file_dir, "%s_%d.%s", filename, sm.rank, extension);
-    FILE *f = fopen(file_dir, "w");
+    char file[50];
+    sprintf(file, "%s_%d.%s", filename, sm.rank, extension);
+    FILE *f = fopen(file, "w");
 
     if (f == NULL)
     {
@@ -130,6 +155,38 @@ void print_matrix(struct Submatrix sm, char file_dir[])
             fprintf(f, "%f\t", sm.subA[i * sm.n + j]);
         fprintf(f, "\n");
     }
+
+    fclose(f);
+}
+
+void plot_matrix(float *matrix, int n, char file_dir[])
+{
+    int i, j;
+    char *file_dir_temp = strdup(file_dir);
+    char *filename = strsep(&file_dir_temp, ".");
+    char *extension = strsep(&file_dir_temp, ".");
+    char file[50];
+    sprintf(file, "%s_plot.%s", filename, extension);
+    FILE *f = fopen(file, "w");
+
+    if (f == NULL)
+    {
+        printf("Error opening file!\n");
+        exit(1);
+    }
+
+    for(i = 0; i < n; i++)
+    {
+        fprintf(f, "z%d <- c(", i + 1);
+        for(j = 0; j < n - 1; j++)
+            fprintf(f, "%f,", matrix[i * n + j]);
+        fprintf(f, "%f)\n", matrix[i * n + n - 1]);
+    }
+
+    fprintf(f, "z <- c(");
+    for(i = 0; i < n-1; i++)
+        fprintf(f, "z%d,", i + 1);
+    fprintf(f, "z%d)", n);
 
     fclose(f);
 }
@@ -150,10 +207,16 @@ int main(int argc, char** argv)
     if (count)
         gettimeofday(&t0, 0);
 
-    const float tol = 1.0e-5f;
-    float error= 1.0f;
+    // Initiate constants
+    const float tol = 1.0e-2f;
 
-    int iter = 0;
+    // Initiate variables
+    float global_error = 1.0f;
+    float local_error = global_error;
+    int iter    = 0;
+
+    // Allocate memory for the results
+    float *A = (float*) malloc(n * n * sizeof(float));
 
     // Initiate MPI region
     int rank, size;
@@ -167,21 +230,21 @@ int main(int argc, char** argv)
     int subrows = rf - ri;
 
     // Allocate memory to matrices and arrays
-    float *subA    = (float *) malloc(n * sizeof(float) * (subrows + 2));
-    float *subtemp = (float *) malloc(n * sizeof(float) * (subrows + 2));
+    float *subA    = (float*) malloc(n * sizeof(float) * (subrows + 2));
+    float *subtemp = (float*) malloc(n * sizeof(float) * (subrows + 2));
     float *swap;
 
     // Initiate Submatrix struct
     struct Submatrix submatrix = {subA, subtemp, n, rank, size, ri, rf,
                                   subrows};
 
+    /*
     printf("Rank: %d\n", rank);
     printf("n: %d, ri: %d, rf: %d\n", n, ri, rf);
+    */
 
     // Set boundary conditions
     laplace_init(submatrix);
-
-    update_rows(submatrix);
 
     /*
     // set singular point
@@ -193,12 +256,12 @@ int main(int argc, char** argv)
                " maximum of %d iterations, using %d processors\n",
                n, n, iter_max, size);
 
-
-    //while ( error > tol*tol && iter < iter_max )
-    while (iter < iter_max)
+    while (global_error > tol * tol & iter < iter_max)
     {
         iter++;
-        error = laplace_step(submatrix);
+        local_error = laplace_step(submatrix);
+        MPI_Reduce(&local_error, &global_error, 1, MPI_FLOAT, MPI_MAX, 0,
+                   MPI_COMM_WORLD);
 
         // swap pointers A & temp
         swap = submatrix.subA;
@@ -209,28 +272,41 @@ int main(int argc, char** argv)
         update_rows(submatrix);
     }
 
-    print_matrix(submatrix, parsed_args.file_dir);
+    if (out)
+    {
+        print_matrix(submatrix, parsed_args.file_dir);
+
+        if (rank == 0)
+        {
+            int i;
+            for (i = 0; i < subrows * n; i++)
+                A[i] = submatrix.subA[n + i];
+            for (i = 1; i < size; i++)
+                recv_submatrix(i, n, A);
+            plot_matrix(A, n, parsed_args.file_dir);
+        }
+        else
+            send_submatrix(submatrix);
+    }
 
     // End MPI region
     MPI_Finalize();
 
-    /*
-    error = sqrtf( error );
-
-    if (out)
-      print_matrix(A, n, file_dir);
-
-    printf("Total Iterations: %5d, ERROR: %0.6f, ", iter, error);
-    printf("A[%d][%d]= %0.6f", n/128, n/128, A[(n/128)*n+n/128]);
-
-    if (count)
+    if (rank == 0)
     {
-      gettimeofday(&t1, 0);
-      long int diff = (t1.tv_sec - t0.tv_sec) *1000000L + t1.tv_usec - t0.tv_usec;
-      printf(", Running time: %ld", diff);
+        global_error = sqrtf(global_error);
+        printf("Total Iterations: %5d, ERROR: %0.6f, ", iter, global_error);
+        printf("A[%d][%d]= %0.6f", n/128, n/128, A[(n/128)*n+n/128]);
+        if (count)
+        {
+          gettimeofday(&t1, 0);
+          long int diff = (t1.tv_sec - t0.tv_sec) *1000000L + t1.tv_usec - t0.tv_usec;
+          printf(", Running time: %ld", diff);
+        }
+        printf("\n");
     }
-    printf("\n");
-    */
+
     free(file_dir);
     free(subA); free(subtemp);
+    free(A);
 }

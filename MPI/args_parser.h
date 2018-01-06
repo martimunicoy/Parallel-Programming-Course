@@ -9,7 +9,7 @@ const int DEFAULT_ITER_MAX = 1000;
 const bool DEFAULT_OUT = false;
 const char DEFAULT_FILE_DIR[50] = "lapFusion_results.tsv";
 const bool DEFAULT_COUNT = false;
-const char ARGS[ARGS_NUM][10] = {"-N", "-I", "-O", "-F", "-C"};
+const char ARGS[ARGS_NUM][10] = {"-n", "-i", "-o", "-f", "-c"};
 
 struct Args{
     int n;
@@ -44,9 +44,10 @@ struct Args args_parser(int argc, char *argv[])
         for (int j = 0; j < ARGS_NUM; j++){
             if (startsWith(*(argv + i), ARGS[j]))
             {
-                if (j == 2) out = true;
+                if (j == 2)
+                    out = true;
                 else if (j == 4)
-                    count = true;
+                    count = !count;
                 else if (i + 2 <= argc)
                 {
                     if (j == 0)
@@ -69,7 +70,7 @@ struct Args args_parser(int argc, char *argv[])
         n = DEFAULT_N;
     }
 
-    if (iter_max<1 | iter_max>999999)
+    if (iter_max<1 | iter_max>9999999)
     {
         printf("\'iter_max\' out of range, using default value (%d)\n", DEFAULT_ITER_MAX);
         iter_max = DEFAULT_ITER_MAX;

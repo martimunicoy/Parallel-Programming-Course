@@ -80,8 +80,8 @@ float laplace_step(struct Submatrix sm)
     if (sm.rank == sm.size - 1)
         --final_row;
 
-    #pragma omp parallel for reduction(max:error)
     for (j = initial_row; j < final_row; j++)
+        #pragma omp parallel for reduction(max:error)
         for (i = 1; i < sm.n - 1; i++)
         {
           sm.subtemp[j * sm.n + i]= stencil(sm.subA[j * sm.n + i + 1],
@@ -112,6 +112,31 @@ void laplace_init(struct Submatrix sm)
         sm.subA[i * n + n - 1] = V * expf(-pi);
         sm.subtemp[i * n + n - 1] = V * expf(-pi);
     }
+}
+
+float get_global_error(int rank, int size, float maximum_error)
+{
+    int i;
+    if (rank == 0)
+    {
+        for (i = 1; i < size; i++)
+        {
+            float local_error;
+            MPI_Recv(&local_error, 1, MPI_FLOAT, i, 0, MPI_COMM_WORLD,
+                     MPI_STATUS_IGNORE);
+            if (local_error > maximum_error)
+                maximum_error = local_error;
+        }
+        for (i = 1; i < size; i++)
+            MPI_Send(&maximum_error, 1, MPI_FLOAT, i, 0, MPI_COMM_WORLD);
+    }
+    else
+    {
+        MPI_Send(&maximum_error, 1, MPI_FLOAT, 0, 0, MPI_COMM_WORLD);
+        MPI_Recv(&maximum_error, 1, MPI_FLOAT, 0, 0, MPI_COMM_WORLD,
+                 MPI_STATUS_IGNORE);
+    }
+    return maximum_error;
 }
 
 void send_submatrix(struct Submatrix sm)
@@ -239,7 +264,7 @@ int main(int argc, char** argv)
     struct Submatrix submatrix = {subA, subtemp, n, rank, size, ri, rf,
                                   subrows};
 
-    // Set number of threads per processor
+    // Set number of threads per process
     omp_set_num_threads(num_threads);
 
     // Set boundary conditions
@@ -250,22 +275,22 @@ int main(int argc, char** argv)
 
     if (rank == 0)
         printf("Jacobi relaxation Calculation: %d x %d mesh,"
-               " maximum of %d iterations, using %d processors and %d threads"
-               " per processor\n", n, n, iter_max, size, num_threads);
+               " maximum of %d iterations, using %d processes and %d threads"
+               " per process\n", n, n, iter_max, size, num_threads);
 
     while (global_error > tol * tol && iter < iter_max)
     {
+        // Perform an iteration and calculate the associated error
         iter++;
         local_error = laplace_step(submatrix);
-        MPI_Reduce(&local_error, &global_error, 1, MPI_FLOAT, MPI_MAX, 0,
-                   MPI_COMM_WORLD);
+        global_error = get_global_error(rank, size, local_error);
 
-        // swap pointers A & temp
+        // Swap pointers A & temp
         swap = submatrix.subA;
         submatrix.subA = submatrix.subtemp;
         submatrix.subtemp = swap;
 
-        // update rows among processes
+        // Update rows among processes
         update_rows(submatrix);
     }
 

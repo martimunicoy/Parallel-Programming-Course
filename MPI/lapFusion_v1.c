@@ -17,12 +17,12 @@ struct Submatrix{
     int subrows;
 };
 
-float stencil (float v1, float v2, float v3, float v4)
+float stencil(float v1, float v2, float v3, float v4)
 {
     return (v1 + v2 + v3 + v4) * 0.25f;
 }
 
-float max_error ( float prev_error, float old, float new )
+float max_error(float prev_error, float old, float new)
 {
     float t= fabsf( new - old );
     return t>prev_error? t: prev_error;
@@ -112,6 +112,31 @@ void laplace_init(struct Submatrix sm)
     }
 }
 
+float get_global_error(int rank, int size, float maximum_error)
+{
+    int i;
+    if (rank == 0)
+    {
+        for (i = 1; i < size; i++)
+        {
+            float local_error;
+            MPI_Recv(&local_error, 1, MPI_FLOAT, i, 0, MPI_COMM_WORLD,
+                     MPI_STATUS_IGNORE);
+            if (local_error > maximum_error)
+                maximum_error = local_error;
+        }
+        for (i = 1; i < size; i++)
+            MPI_Send(&maximum_error, 1, MPI_FLOAT, i, 0, MPI_COMM_WORLD);
+    }
+    else
+    {
+        MPI_Send(&maximum_error, 1, MPI_FLOAT, 0, 0, MPI_COMM_WORLD);
+        MPI_Recv(&maximum_error, 1, MPI_FLOAT, 0, 0, MPI_COMM_WORLD,
+                 MPI_STATUS_IGNORE);
+    }
+    return maximum_error;
+}
+
 void send_submatrix(struct Submatrix sm)
 {
     MPI_Send(&sm.ri, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
@@ -173,6 +198,8 @@ void plot_matrix(float *matrix, int n, char file_dir[])
         exit(1);
     }
 
+    fprintf(f, "library(plotly)\n");
+
     for(i = 0; i < n; i++)
     {
         fprintf(f, "z%d <- c(", i + 1);
@@ -184,7 +211,10 @@ void plot_matrix(float *matrix, int n, char file_dir[])
     fprintf(f, "z <- c(");
     for(i = 0; i < n-1; i++)
         fprintf(f, "z%d,", i + 1);
-    fprintf(f, "z%d)", n);
+    fprintf(f, "z%d)\n", n);
+
+    fprintf(f, "dim(z) <- c(%d,%d)\n", n, n);
+    fprintf(f, "p <- plot_ly(showscale = FALSE) %%>%% add_surface(z)\np\n");
 
     fclose(f);
 }
@@ -206,7 +236,7 @@ int main(int argc, char** argv)
         gettimeofday(&t0, 0);
 
     // Initiate constants
-    const float tol = 1.0e-2f;
+    const float tol = 1.0e-5f;
 
     // Initiate variables
     float global_error = 1.0f;
@@ -244,22 +274,22 @@ int main(int argc, char** argv)
 
     if (rank == 0)
         printf("Jacobi relaxation Calculation: %d x %d mesh,"
-               " maximum of %d iterations, using %d processors\n",
+               " maximum of %d iterations, using %d process\n",
                n, n, iter_max, size);
 
     while (global_error > tol * tol && iter < iter_max)
     {
+        // Perform an iteration and calculate the associated error
         iter++;
         local_error = laplace_step(submatrix);
-        MPI_Reduce(&local_error, &global_error, 1, MPI_FLOAT, MPI_MAX, 0,
-                   MPI_COMM_WORLD);
+        global_error = get_global_error(rank, size, local_error);
 
-        // swap pointers A & temp
+        // Swap pointers A & temp
         swap = submatrix.subA;
         submatrix.subA = submatrix.subtemp;
         submatrix.subtemp = swap;
 
-        // update rows among processes
+        // Update rows among process
         update_rows(submatrix);
     }
 

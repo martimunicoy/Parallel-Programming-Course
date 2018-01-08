@@ -25,10 +25,10 @@ float stencil (float v1, float v2, float v3, float v4)
     return (v1 + v2 + v3 + v4) * 0.25f;
 }
 
-float max_error ( float prev_error, float old, float new )
+float max_error(float prev_error, float old, float new)
 {
     float t= fabsf( new - old );
-    return t>prev_error? t: prev_error;
+    return t > prev_error? t: prev_error;
 }
 
 void update_rows(struct Submatrix sm)
@@ -204,14 +204,14 @@ void print_matrix(struct Submatrix sm, char file_dir[])
     fclose(f);
 }
 
-void plot_matrix(float *matrix, int n, char file_dir[])
+void plot_matrix(float *matrix, int n, char file_dir[], char sufix[])
 {
     int i, j;
     char *file_dir_temp = strdup(file_dir);
     char *filename      = strsep(&file_dir_temp, ".");
     char *extension     = strsep(&file_dir_temp, ".");
     char file[50];
-    sprintf(file, "%s_plot.%s", filename, extension);
+    sprintf(file, "%s_%splot.%s", filename, sufix, extension);
     FILE *f             = fopen(file, "w");
 
     if (f == NULL)
@@ -219,6 +219,8 @@ void plot_matrix(float *matrix, int n, char file_dir[])
         printf("Error opening file!\n");
         exit(1);
     }
+
+    fprintf(f, "library(plotly)\n");
 
     for(i = 0; i < n; i++)
     {
@@ -231,13 +233,17 @@ void plot_matrix(float *matrix, int n, char file_dir[])
     fprintf(f, "z <- c(");
     for(i = 0; i < n-1; i++)
         fprintf(f, "z%d,", i + 1);
-    fprintf(f, "z%d)", n);
+    fprintf(f, "z%d)\n", n);
+
+    fprintf(f, "dim(z) <- c(%d,%d)\n", n, n);
+    fprintf(f, "p <- plot_ly(showscale = FALSE) %%>%% add_surface(z)\np\n");
 
     fclose(f);
 }
 
 int main(int argc, char** argv)
 {
+    int i;
     struct timeval t0, t1;
 
     // get runtime arguments
@@ -254,7 +260,7 @@ int main(int argc, char** argv)
         gettimeofday(&t0, 0);
 
     // Initiate constants
-    const float tol = 1.0e-2f;
+    const float tol = 1.0e-5f;
 
     // Initiate variables
     float global_error = 1.0f;
@@ -290,14 +296,34 @@ int main(int argc, char** argv)
     // Set boundary conditions
     laplace_init(submatrix);
 
-    // set singular point
-    A[(n/128)*n+n/128] = 1.0f;
+    // Set singular point
+    for (i = 0; i < size; i++)
+        if (n / 128 > ri && n / 128 < rf)
+            submatrix.subA[(n / 128 + 1) * n + n / 128] = 1.0f;
 
     if (rank == 0)
         printf("Jacobi relaxation Calculation: %d x %d mesh,"
                " maximum of %d iterations, using %d processes and %d threads"
                " per process\n", n, n, iter_max, size, num_threads);
 
+    // Print initial matrix
+    if (out)
+    {
+        // Join submatrices
+        if (rank == 0)
+        {
+            int i;
+            for (i = 0; i < subrows * n; i++)
+                A[i] = submatrix.subA[n + i];
+            for (i = 1; i < size; i++)
+                recv_submatrix(i, n, A);
+            plot_matrix(A, n, parsed_args.file_dir, "initial");
+        }
+        else
+            send_submatrix(submatrix);
+    }
+
+    // Initiate propagation
     while (global_error > tol * tol && iter < iter_max)
     {
         // Perform an iteration and calculate the associated error
@@ -317,7 +343,6 @@ int main(int argc, char** argv)
     // Join submatrices
     if (rank == 0)
     {
-        int i;
         for (i = 0; i < subrows * n; i++)
             A[i] = submatrix.subA[n + i];
         for (i = 1; i < size; i++)
@@ -330,7 +355,7 @@ int main(int argc, char** argv)
     if (out)
     {
             print_matrix(submatrix, parsed_args.file_dir);
-            plot_matrix(A, n, parsed_args.file_dir);
+            plot_matrix(A, n, parsed_args.file_dir, "final");
     }
 
     // End MPI region

@@ -7,6 +7,8 @@
 #include <mpi.h>
 #include <omp.h>
 
+const int MAXIMUM_FLOATS_PER_MESSAGE = 1000;
+
 struct Submatrix{
     float *subA;
     float *subtemp;
@@ -29,41 +31,59 @@ float max_error ( float prev_error, float old, float new )
     return t>prev_error? t: prev_error;
 }
 
-void update_rows(struct Submatrix submatrix)
+void update_rows(struct Submatrix sm)
 {
-    if (submatrix.size > 1)
+    if (sm.size > 1)
     {
-        int previous    = submatrix.rank - 1;
-        int next        = submatrix.rank + 1;
+        int previous    = sm.rank - 1;
+        int next        = sm.rank + 1;
         int fst_row     = 0;
-        int snd_row     = submatrix.n;
-        int sndlast_row = submatrix.subrows * submatrix.n;
-        int last_row    = (submatrix.subrows + 1) * submatrix.n;
+        int snd_row     = sm.n;
+        int sndlast_row = sm.subrows * sm.n;
+        int last_row    = (sm.subrows + 1) * sm.n;
+        int floats_left = sm.n;
+        int floats_to_send;
 
-        if (submatrix.rank == 0) /* First submatrix */
+        // Split large messages into smaller ones to prevent MPI from hanging
+        while (floats_left != 0)
         {
-            MPI_Send(&submatrix.subA[sndlast_row], submatrix.n, MPI_FLOAT,
-                     next, 0, MPI_COMM_WORLD);
-            MPI_Recv(&submatrix.subA[last_row], submatrix.n, MPI_FLOAT, next,
-                     0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        }
-        else if (submatrix.rank == submatrix.size - 1) /* Last submatrix */
-        {
-            MPI_Send(&submatrix.subA[snd_row], submatrix.n, MPI_FLOAT,
-                     previous, 0, MPI_COMM_WORLD);
-            MPI_Recv(&submatrix.subA[fst_row], submatrix.n, MPI_FLOAT,
-                     previous, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        }
-        else /* Inner submatrix */
-        {
-            MPI_Send(&submatrix.subA[snd_row], submatrix.n, MPI_FLOAT,
-                     previous, 0, MPI_COMM_WORLD);
-            MPI_Send(&submatrix.subA[sndlast_row], submatrix.n, MPI_FLOAT,
-                     next, 0, MPI_COMM_WORLD);
-            MPI_Recv(&submatrix.subA[fst_row], submatrix.n, MPI_FLOAT,
-                     previous, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            MPI_Recv(&submatrix.subA[last_row], submatrix.n, MPI_FLOAT, next,
-                     0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            if (floats_left > MAXIMUM_FLOATS_PER_MESSAGE)
+                floats_to_send = MAXIMUM_FLOATS_PER_MESSAGE;
+            else
+                floats_to_send = floats_left;
+
+            // First submatrix
+            if (sm.rank == 0)
+            {
+                MPI_Send(&sm.subA[sndlast_row], floats_to_send, MPI_FLOAT,
+                         next, 0, MPI_COMM_WORLD);
+                MPI_Recv(&sm.subA[last_row], floats_to_send, MPI_FLOAT, next,
+                         0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            }
+
+            // Last submatrix
+            else if (sm.rank == sm.size - 1)
+            {
+                MPI_Send(&sm.subA[snd_row], floats_to_send, MPI_FLOAT,
+                         previous, 0, MPI_COMM_WORLD);
+                MPI_Recv(&sm.subA[fst_row], floats_to_send, MPI_FLOAT,
+                         previous, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            }
+
+            // Inner submatrix
+            else
+            {
+                MPI_Send(&sm.subA[snd_row], floats_to_send, MPI_FLOAT,
+                         previous, 0, MPI_COMM_WORLD);
+                MPI_Send(&sm.subA[sndlast_row], floats_to_send, MPI_FLOAT,
+                         next, 0, MPI_COMM_WORLD);
+                MPI_Recv(&sm.subA[fst_row], floats_to_send, MPI_FLOAT,
+                         previous, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                MPI_Recv(&sm.subA[last_row], floats_to_send, MPI_FLOAT, next,
+                         0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            }
+
+            floats_left -= floats_to_send;
         }
     }
 }

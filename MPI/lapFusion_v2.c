@@ -3,8 +3,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
-#include "args_parser.h"
+#include "args_parser2.h"
 #include <mpi.h>
+#include <omp.h>
 
 struct Submatrix{
     float *subA;
@@ -79,6 +80,7 @@ float laplace_step(struct Submatrix sm)
     if (sm.rank == sm.size - 1)
         --final_row;
 
+    #pragma omp parallel for reduction(max:error)
     for (j = initial_row; j < final_row; j++)
         for (i = 1; i < sm.n - 1; i++)
         {
@@ -197,6 +199,7 @@ int main(int argc, char** argv)
     struct Args parsed_args = args_parser(argc, argv);
     int n                   = parsed_args.n;
     int iter_max            = parsed_args.iter_max;
+    int num_threads         = parsed_args.num_threads;
     bool out                = parsed_args.out;
     char *file_dir          = malloc(50);
     strcpy(file_dir, parsed_args.file_dir);
@@ -236,6 +239,9 @@ int main(int argc, char** argv)
     struct Submatrix submatrix = {subA, subtemp, n, rank, size, ri, rf,
                                   subrows};
 
+    // Set number of threads per processor
+    omp_set_num_threads(num_threads);
+
     // Set boundary conditions
     laplace_init(submatrix);
 
@@ -244,8 +250,8 @@ int main(int argc, char** argv)
 
     if (rank == 0)
         printf("Jacobi relaxation Calculation: %d x %d mesh,"
-               " maximum of %d iterations, using %d processors\n",
-               n, n, iter_max, size);
+               " maximum of %d iterations, using %d processors and %d threads"
+               " per processor\n", n, n, iter_max, size, num_threads);
 
     while (global_error > tol * tol && iter < iter_max)
     {

@@ -1,19 +1,21 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdio.h>
+#include <omp.h>
 
-#define ARGS_NUM 5
+#define ARGS_NUM 6
 
 const int DEFAULT_N = 4096;
 const int DEFAULT_ITER_MAX = 1000;
 const bool DEFAULT_OUT = false;
 const char DEFAULT_FILE_DIR[50] = "lapFusion_results.tsv";
 const bool DEFAULT_COUNT = false;
-const char ARGS[ARGS_NUM][10] = {"-n", "-i", "-o", "-f", "-c"};
+const char ARGS[ARGS_NUM][10] = {"-n", "-i", "-o", "-f", "-c", "-t"};
 
 struct Args{
     int n;
     int iter_max;
+    int num_threads;
     bool out;
     char *file_dir;
     bool count;
@@ -35,6 +37,7 @@ struct Args args_parser(int argc, char *argv[])
     int i, j;
     int n = DEFAULT_N;
     int iter_max = DEFAULT_ITER_MAX;
+    int num_threads = omp_get_num_procs();
     bool out = DEFAULT_OUT;
     char *file_dir = malloc(50);
     strcpy(file_dir, DEFAULT_FILE_DIR);
@@ -57,6 +60,8 @@ struct Args args_parser(int argc, char *argv[])
                         iter_max = atoi(*(argv + i + 1));
                     else if (j == 3)
                         strcpy(file_dir, *(argv + i + 1));
+                    else if (j == 5)
+                        num_threads = atoi(*(argv + i + 1));
                 }
                 else
                     printf("Wrong command, using default values.\n");
@@ -73,8 +78,16 @@ struct Args args_parser(int argc, char *argv[])
 
     if (iter_max<1 | iter_max>9999999)
     {
-        printf("\'iter_max\' out of range, using default value (%d)\n", DEFAULT_ITER_MAX);
+        printf("\'iter_max\' out of range, using default value (%d)\n",
+               DEFAULT_ITER_MAX);
         iter_max = DEFAULT_ITER_MAX;
+    }
+
+    if (num_threads<1 | num_threads>8)
+    {
+        printf("\'num_threads\' out of range, using default value (%d)\n",
+               omp_get_num_procs());
+        num_threads = omp_get_num_procs();
     }
 
     if (!endsWith(file_dir, ".tsv"))
@@ -83,6 +96,6 @@ struct Args args_parser(int argc, char *argv[])
         strcpy(file_dir, DEFAULT_FILE_DIR);
     }
 
-    struct Args parsed_args = {n, iter_max, out, file_dir, count};
+    struct Args parsed_args = {n, iter_max, num_threads, out, file_dir, count};
     return parsed_args;
 }

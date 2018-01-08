@@ -30,37 +30,40 @@ float max_error ( float prev_error, float old, float new )
 
 void update_rows(struct Submatrix submatrix)
 {
-    int previous    = submatrix.rank - 1;
-    int next        = submatrix.rank + 1;
-    int fst_row     = 0;
-    int snd_row     = submatrix.n;
-    int sndlast_row = submatrix.subrows * submatrix.n;
-    int last_row    = (submatrix.subrows + 1) * submatrix.n;
+    if (submatrix.size > 1)
+    {
+        int previous    = submatrix.rank - 1;
+        int next        = submatrix.rank + 1;
+        int fst_row     = 0;
+        int snd_row     = submatrix.n;
+        int sndlast_row = submatrix.subrows * submatrix.n;
+        int last_row    = (submatrix.subrows + 1) * submatrix.n;
 
-    if (submatrix.rank == 0) /* First submatrix */
-    {
-        MPI_Send(&submatrix.subA[sndlast_row], submatrix.n, MPI_FLOAT, next, 0,
-                 MPI_COMM_WORLD);
-        MPI_Recv(&submatrix.subA[last_row], submatrix.n, MPI_FLOAT, next, 0,
-                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    }
-    else if (submatrix.rank == submatrix.size - 1) /* Last submatrix */
-    {
-        MPI_Send(&submatrix.subA[snd_row], submatrix.n, MPI_FLOAT,
-                 previous, 0, MPI_COMM_WORLD);
-        MPI_Recv(&submatrix.subA[fst_row], submatrix.n, MPI_FLOAT,
-                 previous, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    }
-    else /* Inner submatrix */
-    {
-        MPI_Send(&submatrix.subA[snd_row], submatrix.n, MPI_FLOAT, previous, 0,
-                 MPI_COMM_WORLD);
-        MPI_Send(&submatrix.subA[sndlast_row], submatrix.n, MPI_FLOAT, next, 0,
-                 MPI_COMM_WORLD);
-        MPI_Recv(&submatrix.subA[fst_row], submatrix.n, MPI_FLOAT, previous, 0,
-                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        MPI_Recv(&submatrix.subA[last_row], submatrix.n, MPI_FLOAT, next, 0,
-                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        if (submatrix.rank == 0) /* First submatrix */
+        {
+            MPI_Send(&submatrix.subA[sndlast_row], submatrix.n, MPI_FLOAT,
+                     next, 0, MPI_COMM_WORLD);
+            MPI_Recv(&submatrix.subA[last_row], submatrix.n, MPI_FLOAT, next,
+                     0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        }
+        else if (submatrix.rank == submatrix.size - 1) /* Last submatrix */
+        {
+            MPI_Send(&submatrix.subA[snd_row], submatrix.n, MPI_FLOAT,
+                     previous, 0, MPI_COMM_WORLD);
+            MPI_Recv(&submatrix.subA[fst_row], submatrix.n, MPI_FLOAT,
+                     previous, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        }
+        else /* Inner submatrix */
+        {
+            MPI_Send(&submatrix.subA[snd_row], submatrix.n, MPI_FLOAT,
+                     previous, 0, MPI_COMM_WORLD);
+            MPI_Send(&submatrix.subA[sndlast_row], submatrix.n, MPI_FLOAT,
+                     next, 0, MPI_COMM_WORLD);
+            MPI_Recv(&submatrix.subA[fst_row], submatrix.n, MPI_FLOAT,
+                     previous, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Recv(&submatrix.subA[last_row], submatrix.n, MPI_FLOAT, next,
+                     0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        }
     }
 }
 
@@ -115,12 +118,6 @@ void send_submatrix(struct Submatrix sm)
     MPI_Send(&sm.subrows, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
     MPI_Send(&sm.subA[sm.n], sm.subrows * sm.n, MPI_FLOAT, 0, 0,
              MPI_COMM_WORLD);
-    /*
-    int i, j;
-    for (j = 0; j < sm.subrows; j++)
-        for (i = 0; i < sm.n; i++)
-            A[sm.n * (sm.ri + j) + i] = sm.subA[sm.n * (j + 1) + i];
-    */
 }
 
 void recv_submatrix(int origin, int n, float *A)
@@ -238,25 +235,18 @@ int main(int argc, char** argv)
     struct Submatrix submatrix = {subA, subtemp, n, rank, size, ri, rf,
                                   subrows};
 
-    /*
-    printf("Rank: %d\n", rank);
-    printf("n: %d, ri: %d, rf: %d\n", n, ri, rf);
-    */
-
     // Set boundary conditions
     laplace_init(submatrix);
 
-    /*
     // set singular point
     A[(n/128)*n+n/128] = 1.0f;
-    */
 
     if (rank == 0)
         printf("Jacobi relaxation Calculation: %d x %d mesh,"
                " maximum of %d iterations, using %d processors\n",
                n, n, iter_max, size);
 
-    while (global_error > tol * tol & iter < iter_max)
+    while (global_error > tol * tol && iter < iter_max)
     {
         iter++;
         local_error = laplace_step(submatrix);
